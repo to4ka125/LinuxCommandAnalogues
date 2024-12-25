@@ -1,30 +1,47 @@
+// clear project main.go
 package main
 
 import (
- "flag"
- "fmt"
- "os"
- "strconv"
+	"fmt"
+	"os"
 )
 
+// Функция для вывода справки по использованию программы
+func help() {
+	fmt.Println("Справка")
+	fmt.Println("Использование: clear [опция]")
+	fmt.Println("Опции:")
+	fmt.Println(" -h      Выводит  справку.")
+	fmt.Println(" -v      Выводит версию программы.")
+}
+
+// Функция для очистки экрана
+func clearScreen() {
+	fmt.Print("\033[H\033[2J") // ANSI escape код для очистки экрана
+}
+
+// main - точка входа программы
 func main() {
- lineCountArg := flag.String("n", "25", "Количество пустых строк (целое число)")
- showHelp := flag.Bool("h", false, "Показать справку")
+	if len(os.Args) < 2 {
+		// Если аргументы не указаны, просто очищаем экран
+		clearScreen()
+		return
+	}
 
- flag.Parse()
+	for i := 1; i < len(os.Args); i++ {
+		switch os.Args[i] {
+		case "-h":
+			help() // Выводим справочную информацию
+			return
+		case "-v":
+			fmt.Println("clear версия 1.0.0") // Выводим версию программы
+			return
+		default:
+			fmt.Printf("Неизвестный аргумент: %s\n", os.Args[i])
+			return
+		}
+	}
 
- if *showHelp {
-  fmt.Println("Использование: clear [-h] [-n <количество_строк>]")
-  os.Exit(0)
- }
-
- lineCount, err := strconv.Atoi(*lineCountArg)
- if err != nil || lineCount < 0 {
-  fmt.Println("Ошибка: Неверный параметр -n. Используйте неотрицательное целое число.")
-  os.Exit(1)
- }
-
- for i := 0; i < lineCount; i++ {
-  fmt.Println()
- }
+	// Если не было указано никаких опций, просто очищаем экран
+	clearScreen()
 }
