@@ -1,68 +1,91 @@
 package main
 
 import (
- "flag"
- "fmt"
- "os"
- "os/exec"
- "strings"
+	"bufio"
+	"fmt"
+	"os"
+	"os/user"
+	"path/filepath"
+	"strings"
 )
 
-func main() {
- // Определяем флаг для справки
- help := flag.Bool("h", false, "Выводит справку")
- flag.Parse()
-
- // Если запрашивается справка, выводим её
- if *help {
-  fmt.Println("Использование: go run main.go [опции]")
-  fmt.Println("Опции:")
-  fmt.Println("  -h    Выводит справку")
-  return
- }
-
- // Получаем последнюю введенную команду из истории
- lastCommand := getLastCommand()
- if lastCommand == "" {
-  fmt.Println("Нет доступных команд в истории.")
-  return
- }
-
- // Выполняем последнюю команду
- fmt.Printf("Выполняется: %s\n", lastCommand)
- cmd := exec.Command("sh", "-c", lastCommand)
- output, err := cmd.CombinedOutput()
- if err != nil {
-  fmt.Printf("Ошибка: %s\n", err)
-  return
- }
-
- // Выводим результат выполнения команды
- fmt.Println(string(output))
+// getHomeDir возвращает домашнюю директорию пользователя
+func getHomeDir() (string, error) {
+	usr, err := user.Current()
+	if err != nil {
+		return "", err
+	}
+	return usr.HomeDir, nil
 }
 
-// getLastCommand возвращает последнюю команду из истории
-func getLastCommand() string {
- historyFile := os.Getenv("HISTFILE") // Обычно это ~/.bash_history
- if historyFile == "" {
-  return ""
- }
+// getLastCommand читает последнюю команду из файла .bash_history
+func getLastCommand() (string, error) {
+	// Получаем домашнюю директорию пользователя
+	homeDir, err := getHomeDir()
+	if err != nil {
+		return "", err
+	}
 
- data, err := os.ReadFile(historyFile)
- if err != nil {
-  return ""
- }
+	// Путь к файлу .bash_history
+	historyFilePath := filepath.Join(homeDir, ".bash_history")
 
- lines := strings.Split(string(data), "\n")
- if len(lines) == 0 {
-  return ""
- }
+	// Открываем файл .bash_history
+	file, err := os.OpenFile(historyFilePath, os.O_RDONLY, 0644)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// Если файл не существует, просто возвращаем nil
+			return "", nil
+		}
+		return "", err
+	}
+	defer file.Close()
 
- // Возвращаем последнюю непустую строку (команду)
- for i := len(lines) - 1; i >= 0; i-- {
-  if strings.TrimSpace(lines[i]) != "" {
-   return lines[i]
-  }
- }
- return ""
+	// Читаем содержимое файла построчно
+	var lastCmd string
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		lastCmd = scanner.Text()
+	}
+
+	if err := scanner.Err(); err != nil {
+		return "", err
+	}
+
+	// Проверяем, начинается ли последняя команда с "./ll"
+	if strings.HasPrefix(lastCmd, "./ll") {
+		return "", nil // Возвращаем пустую строку, если команда не должна учитываться
+	}
+
+	return lastCmd, nil
+}
+
+// help выводит справочную информацию
+func help() {
+	fmt.Println("Справка")
+	fmt.Println("Использование: ./!!")
+	fmt.Println("Выводит последнюю введенную команду из .bash_history.")
+	fmt.Println("Опции:")
+	fmt.Println("  -h    Показать эту справку")
+}
+
+func main() {
+	// Проверяем аргументы командной строки
+	if len(os.Args) > 1 && os.Args[1] == "-h" {
+		help()
+		return
+	}
+
+	cmd, err := getLastCommand()
+	if err != nil {
+		fmt.Println("Ошибка при получении последней команды:", err)
+		return
+	}
+
+	if cmd == "" {
+		fmt.Println("Ошибка: нет последней команды для отображения.")
+		return
+	}
+
+	// Выводим последнюю команду
+	fmt.Printf("Последняя введенная команда: %s\n", cmd)
 }
