@@ -60,17 +60,15 @@ func fetchProcesses() ([]ProcInfo, error) {
     command := fields[1]
     pidInt, _ := strconv.Atoi(pid)
 
-    // Получаем TTY, STAT и TIME из файла stat
-    tty := fields[6]   // TTY
-    stat := fields[3]  // STAT
-    time := fields[13] // TIME
+    tty := fields[6]  
+    stat := fields[3]  
+    time := fields[13] 
 
-    // Извлечение информации о пользователе и ресурсах из файла status
     userName := extractUserFromStatus(status)
     cpu := calculateCPUUsage(fields)
     mem := calculateMemoryUsage(fields)
-    vsz := extractIntField(fields[22]) // VSZ
-    rss := extractIntField(fields[23]) // RSS
+    vsz := extractIntField(fields[22]) 
+    rss := extractIntField(fields[23])
 
     procList = append(procList, ProcInfo{
      User:    userName,
@@ -104,7 +102,7 @@ func extractUserFromStatus(status []byte) string {
    if len(fields) > 2 {
     userID := fields[1]
     uidInt, _ := strconv.Atoi(userID)
-    userInfo, err := user.LookupId(strconv.Itoa(uidInt)) // Получаем имя пользователя по UID
+    userInfo, err := user.LookupId(strconv.Itoa(uidInt)) 
     if err == nil {
      return userInfo.Username
     }
@@ -115,13 +113,12 @@ func extractUserFromStatus(status []byte) string {
 }
 
 func calculateCPUUsage(fields []string) float64 {
- // Здесь можно добавить логику для вычисления %CPU на основе данных из stat
- return 0.0 // Заглушка для %CPU
+ return 0.0 
 }
 
 func calculateMemoryUsage(fields []string) float64 {
- memUsage := extractIntField(fields[23]) // RSS
- return float64(memUsage) / 1024.0       // Преобразуем в МБ
+ memUsage := extractIntField(fields[23]) 
+ return float64(memUsage) / 1024.0      
 }
 
 func extractIntField(field string) int {
@@ -133,7 +130,7 @@ func main() {
  if len(os.Args) > 1 {
   switch os.Args[1] {
   case "-h":
-   displayHelp() // Выводим справку
+   displayHelp() 
    return
   case "-a":
    procList, err := fetchProcesses()
@@ -170,8 +167,7 @@ func main() {
 13:48
 
 
-proc.CPU, proc.Mem, proc.VSZ, proc.RSS,
-     proc.TTY, proc.STAT, proc.Start, proc.Time, proc.Command)
+proc.CPU, proc.Mem, proc.VSZ, proc.RSS, proc.TTY, proc.STAT, proc.Start, proc.Time, proc.Command)
    }
    return
   }
