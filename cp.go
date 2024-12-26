@@ -1,162 +1,128 @@
 package main
 
 import (
-	"fmt"
-	"io"
-	"os"
-	"path/filepath"
-	"strings"
+    "flag"
+    "fmt"
+    "io"
+    "os"
+    "path/filepath"
 )
 
-// help выводит справку по использованию программы
-func help() {
-	fmt.Println("Справка")
-	fmt.Println("Использование:")
-	fmt.Println("cp [опции] [откуда] [куда]")
-	fmt.Println()
-	fmt.Println("Опции:")
-	fmt.Println("  -h          Показать эту справку")
-	fmt.Println("  -a          Копировать рекурсивно и сохранять атрибуты")
-	fmt.Println("  -i          Спрашивать перед тем как переписывать")
-	fmt.Println("  -v          Показать версию программы")
+func usage() {
+    fmt.Println("Использование: cp [опции] источник назначение")
+    fmt.Println("Опции:")
+    fmt.Println("  -r    Рекурсивное копирование каталогов")
+    fmt.Println("  -i    Запрашивать подтверждение перед перезаписью файла")
+    fmt.Println("  -v    Выводить информацию о процессе копирования")
+    fmt.Println("  -h    Выводить справку по использованию команды")
 }
 
-// vers выводит информацию о версии программы
-func vers() {
-	fmt.Println("cp (GNU coreutils) 9.1")
-	fmt.Println("Copyright (C) 2022 Free Software Foundation, Inc.")
-	fmt.Println("Лицензия: MIT")
+func copyFile(src, dst string, interactive, verbose bool) error {
+    if verbose {
+        fmt.Printf("Копирую файл %s в %s\n", src, dst)
+    }
+    
+    sourceFile, err := os.Open(src)
+    if err != nil {
+        return fmt.Errorf("не удалось открыть источник: %w", err)
+    }
+    defer sourceFile.Close()
+
+    destFile, err := os.Create(dst)
+    if err != nil {
+        return fmt.Errorf("не удалось создать файл назначения: %w", err)
+    }
+    defer destFile.Close()
+
+    if _, err = io.Copy(destFile, sourceFile); err != nil {
+        return fmt.Errorf("ошибка при копировании: %w", err)
+    }
+
+    return nil
 }
 
-// copyFile выполняет копирование файла
-func copyFile(source, destination string, archive bool) error {
-	srcFile, err := os.Open(source)
-	if err != nil {
-		return err
-	}
-	defer srcFile.Close()
+func copyDir(srcDir, dstDir string, interactive, verbose bool) error {
+    if verbose {
+        fmt.Printf("Копирую каталог %s в %s\n", srcDir, dstDir)
+    }
 
-	destFile, err := os.Create(destination)
-	if err != nil {
-		return err
-	}
-	defer destFile.Close()
+    return filepath.Walk(srcDir, func(src string, info os.FileInfo, err error) error {
+        if err != nil {
+            return err
+        }
 
-	_, err = io.Copy(destFile, srcFile)
-	if err != nil {
-		return err
-	}
+        relPath, _ := filepath.Rel(srcDir, src)
+        dst := filepath.Join(dstDir, relPath)
 
-	if archive {
-		// Сохранение атрибутов (например, времени модификации)
-		srcInfo, err := srcFile.Stat()
-		if err != nil {
-			return err
-		}
-		err = os.Chtimes(destination, srcInfo.ModTime(), srcInfo.ModTime())
-		if err != nil {
-			return err
-		}
-	}
+        if info.IsDir() {
+            return os.MkdirAll(dst, os.ModePerm)
+        }
 
-	return nil
-}
+        if interactive {
+            if _, err := os.Stat(dst); err == nil {
+                var response string
+                fmt.Printf("Файл %s уже существует. Перезаписать? (y/n): ", dst)
+                fmt.Scanln(&response)
+                if response != "y" {
+                    return nil
+                }
+            }
+        }
 
-// copyDirectory выполняет рекурсивное копирование каталога
-func copyDirectory(source, destination string, archive bool) error {
-	return filepath.Walk(source, func(srcPath string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		// Определяем путь назначения
-		relPath, err := filepath.Rel(source, srcPath)
-		if err != nil {
-			return err
-		}
-		destPath := filepath.Join(destination, relPath)
-
-		if info.IsDir() {
-			// Создаем директорию назначения
-			return os.MkdirAll(destPath, os.ModePerm)
-		}
-
-		// Копируем файл
-		return copyFile(srcPath, destPath, archive)
-	})
+        return copyFile(src, dst, interactive, verbose)
+    })
 }
 
 func main() {
-	if len(os.Args) < 2 {
-		help()
-		return
-	}
+    recursive := flag.Bool("r", false, "Рекурсивное копирование каталогов")
+    interactive := flag.Bool("i", false, "Запрашивать подтверждение перед перезаписью файла")
+    verbose := flag.Bool("v", false, "Выводить информацию о процессе копирования")
+    help := flag.Bool("h", false, "Выводить справку по использованию команды")
 
-	var interactive bool
-	var archive bool
+    flag.Parse()
 
-	// Обработка аргументов командной строки
-	for _, arg := range os.Args[1:] {
-		switch arg {
-		case "-h":
-			help()
-			return
-		case "-v":
-			vers()
-			return
-		case "-a":
-			archive = true
-		case "-i":
-			interactive = true
-		default:
-			// Если это не опция, то это должно быть либо источник, либо назначение
-			if strings.HasPrefix(arg, "-") {
-				fmt.Printf("Неизвестный аргумент: %s\n", arg)
-				help()
-				return
-			}
-		}
-	}
+    if *help {
+        usage()
+        return
+    }
 
-	// Проверяем, что указаны как минимум два аргумента (источник и назначение)
-	if len(os.Args) < 3 {
-		fmt.Println("Ошибка: Не указаны источник и назначение.")
-		help()
-		return
-	}
+    args := flag.Args()
+    if len(args) < 2 {
+        fmt.Println("Ошибка: необходимо указать источник и назначение.")
+        usage()
+        return
+    }
 
-	// Получаем источник и назначение
-	source := os.Args[len(os.Args)-2]
-	destination := os.Args[len(os.Args)-1]
+    src := args[0]
+    dst := args[1]
 
-	// Логика интерактивного режима
-	if interactive {
-		fmt.Printf("Вы действительно хотите скопировать %s в %s? (y/n): ", source, destination)
-		var response string
-		fmt.Scanln(&response)
-		if response != "y" {
-			fmt.Println("Копирование отменено.")
-			return
-		}
-	}
+    srcInfo, err := os.Stat(src)
+    if err != nil {
+        fmt.Printf("Ошибка: не удалось получить информацию о источнике: %s\n", err)
+        return
+    }
 
-	// Проверяем, является ли источник каталогом или файлом
-	sourceInfo, err := os.Stat(source)
-	if err != nil {
-		fmt.Printf("Ошибка: %v\n", err)
-		return
-	}
-
-	if sourceInfo.IsDir() {
-		// Если источник - это каталог, выполняем рекурсивное копирование
-		err = copyDirectory(source, destination, archive)
-	} else {
-		// Если источник - это файл, выполняем копирование файла
-		err = copyFile(source, destination, archive)
-	}
-
-	if err != nil {
-		fmt.Printf("Ошибка при копировании: %v\n", err)
-	}
+    if srcInfo.IsDir() {
+        if !*recursive {
+            fmt.Println("Ошибка: необходимо использовать -r для копирования каталогов.")
+            return
+        }
+        if err := copyDir(src, dst, *interactive, *verbose); err != nil {
+            fmt.Printf("Ошибка при копировании каталога: %s\n", err)
+        }
+    } else {
+        if *interactive {
+            if _, err := os.Stat(dst); err == nil {
+                var response string
+                fmt.Printf("Файл %s уже существует. Перезаписать? (y/n): ", dst)
+                fmt.Scanln(&response)
+                if response != "y" {
+                    return
+                }
+            }
+        }
+        if err := copyFile(src, dst, *interactive, *verbose); err != nil {
+            fmt.Printf("Ошибка при копировании файла: %s\n", err)
+        }
+    }
 }
-
