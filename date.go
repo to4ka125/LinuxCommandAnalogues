@@ -7,57 +7,54 @@ import (
  "time"
 )
 
-func showHelp() {
- fmt.Println("Использование: date [опции]")
+func displayHelp() {
+ fmt.Println("Использование: mydate [опции]")
  fmt.Println("Опции:")
- fmt.Println("  -d <date>  Печатает указанную дату")
- fmt.Println("  -f <file>  Читает даты из файла и печатает их")
- fmt.Println("  -r <file>  Читает дату из файла и печатает её в стандартном формате")
+ fmt.Println("  -d <дата>  Печатает указанную дату")
+ fmt.Println("  -f <файл>  Читает даты из файла и печатает их")
+ fmt.Println("  -r <файл>  Читает дату из файла и печатает её в стандартном формате")
  fmt.Println("  -h         Показать эту справку")
 }
 
-func printDate(dateStr string) {
- date, err := time.Parse(time.RFC3339, dateStr)
- if err != nil {
-  fmt.Printf("Ошибка: Неверный формат даты '%s'. Используйте формат RFC3339.\n", dateStr)
-  return
+func processDate(dateInput string) {
+ if parsedDate, err := time.Parse(time.RFC3339, dateInput); err == nil {
+  fmt.Println("Указанная дата:", parsedDate.Format(time.RFC1123))
+ } else {
+  fmt.Printf("Ошибка: Неверный формат даты '%s'. Используйте формат RFC3339.\n", dateInput)
  }
- fmt.Println("Указанная дата:", date.Format(time.RFC1123))
 }
 
-func processFile(filename string) {
- file, err := os.Open(filename)
+func processFile(filePath string) {
+ file, err := os.Open(filePath)
  if err != nil {
-  fmt.Printf("Ошибка при открытии файла '%s': %v\n", filename, err)
+  fmt.Printf("Ошибка при открытии файла '%s': %v\n", filePath, err)
   return
  }
  defer file.Close()
 
  scanner := bufio.NewScanner(file)
  for scanner.Scan() {
-  printDate(scanner.Text())
+  processDate(scanner.Text())
  }
-
  if err := scanner.Err(); err != nil {
   fmt.Printf("Ошибка при чтении файла: %v\n", err)
  }
 }
+
 func main() {
  if len(os.Args) < 3 {
-  showHelp()
+  displayHelp()
   return
  }
 
  switch os.Args[1] {
  case "-d":
-  printDate(os.Args[2])
- case "-f":
+  processDate(os.Args[2])
+ case "-f", "-r":
   processFile(os.Args[2])
- case "-r":
-  processFile(os.Args[2]) 
  case "-h":
-  showHelp()
+  displayHelp()
  default:
-  showHelp()
+  displayHelp()
  }
 }
