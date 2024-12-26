@@ -1,144 +1,136 @@
 package main
 
 import (
- "fmt"
- "io"
- "os"
- "path/filepath"
- "strings"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
 )
 
-// showHelp выводит справку по использованию программы
-func showHelp() {
- fmt.Println("Справка")
- fmt.Println("Использование:")
- fmt.Println("cp [опции] [откуда] [куда]")
- fmt.Println()
- fmt.Println("Опции:")
- fmt.Println("  -h          Показать эту справку")
- fmt.Println("  -a          Копировать рекурсивно и сохранять атрибуты")
- fmt.Println("  -i          Спрашивать перед тем как переписывать")
- fmt.Println("  -v          Показать версию программы")
-}
-
-// showVersion выводит информацию о версии программы
-func showVersion() {
- fmt.Println("cp (GNU coreutils) 9.1")
- fmt.Println("Copyright (C) 2022 Free Software Foundation, Inc.")
- fmt.Println("Лицензия: MIT")
-}
-
-// copyFile выполняет копирование файла
 func copyFile(src, dst string, preserveAttrs bool) error {
- sourceFile, err := os.Open(src)
- if err != nil {
-  return err
- }
- defer sourceFile.Close()
+	sourceFile, err := os.Open(src)
 
- destFile, err := os.Create(dst)
- if err != nil {
-  return err
- }
- defer destFile.Close()
+	if err != nil {
+		return err
+	}
 
- if _, err = io.Copy(destFile, sourceFile); err != nil {
-  return err
- }
+	defer sourceFile.Close()
 
- if preserveAttrs {
-  srcInfo, err := sourceFile.Stat()
-  if err != nil {
-   return err
-  }
-  return os.Chtimes(dst, srcInfo.ModTime(), srcInfo.ModTime())
- }
+	destinationFile, err := os.Create(dst)
 
- return nil
+	if err != nil {
+		return err
+	}
+
+	defer destinationFile.Close()
+
+	_, err = io.Copy(destinationFile, sourceFile) // Копируем содержимое файла
+
+	if err != nil {
+		return err
+	}
+
+	if preserveAttrs {
+		sourceInfo, err := sourceFile.Stat()
+
+		if err != nil {
+			return err
+		}
+
+		err = os.Chmod(dst, sourceInfo.Mode()) // Сохраняем права доступа
+
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
-// copyDir выполняет рекурсивное копирование каталога
-func copyDir(src, dst string, preserveAttrs bool) error {
- return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
-  if err != nil {
-   return err
-  }
+func copyDirectory(src string, dst string) error {
+	err := os.MkdirAll(dst, os.ModePerm) // Создаем директорию назначения
 
-  relPath, err := filepath.Rel(src, path)
-  if err != nil {
-   return err
-  }
-  destPath := filepath.Join(dst, relPath)
+	if err != nil {
+		return err
+	}
 
-  if info.IsDir() {
-   return os.MkdirAll(destPath, os.ModePerm)
-  }
+	files, err := os.ReadDir(src) // Читаем содержимое директории
 
-  return copyFile(path, destPath, preserveAttrs)
- })
+	if err != nil {
+		return err
+	}
+
+	for _, file := range files {
+
+		srcPath := filepath.Join(src, file.Name())
+		dstPath := filepath.Join(dst, file.Name())
+
+		if file.IsDir() {
+			err = copyDirectory(srcPath, dstPath) // Рекурсивно копируем поддиректории
+
+			if err != nil {
+				return err
+			}
+
+		} else {
+			err = copyFile(srcPath, dstPath, false) // Копируем файлы (без сохранения атрибутов)
+
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func handleArgs(args []string) (string, string, string, error) {
+
+	if len(args) < 4 {
+		return "", "", "", fmt.Errorf("недостаточно аргументов")
+	}
+
+	flag := args[1]
+
+	src := args[2]
+
+	dst := args[3]
+
+	if flag != "-a" && flag != "-b" && flag != "-d" {
+		return "", "", "", fmt.Errorf("некорректный флаг: %s", flag)
+	}
+	return flag, src, dst, nil
 }
 
 func main() {
- if len(os.Args) < 2 {
-  showHelp()
-  return
- }
+	flag, src, dst, err := handleArgs(os.Args)
 
- var interactive, preserveAttrs bool
+	if err != nil {
+		fmt.Println(err)
+		fmt.Println("Использование: cp [-a | -b | -d] <source> <destination>")
 
- for _, arg := range os.Args[1:] {
-  switch arg {
-  case "-h":
-   showHelp()
-   return
-  case "-v":
-   showVersion()
-   return
-  case "-a":
-   preserveAttrs = true
-  case "-i":
-   interactive = true
-  default:
-   if strings.HasPrefix(arg, "-") {
-    fmt.Printf("Неизвестный аргумент: %s\n", arg)
-    showHelp()
-    return
-   }
-  }
- }
+		return
+	}
 
- if len(os.Args) < 3 {
-  fmt.Println("Ошибка: Не указаны источник и назначение.")
-  showHelp()
-  return
- }
+	switch flag {
 
- src := os.Args[len(os.Args)-2]
- dst := os.Args[len(os.Args)-1]
+	case "-a":
+		err = copyFile(src, dst, true) // Копирование с сохранением атрибутов
 
- if interactive {
-  fmt.Printf("Вы действительно хотите скопировать %s в %s? (y/n): ", src, dst)
-  var response string
-  fmt.Scanln(&response)
-  if response != "y" {
-   fmt.Println("Копирование отменено.")
-   return
-  }
- }
+	case "-b":
+		err = copyFile(src, dst, false) // Бинарное копирование (без сохранения атрибутов)
 
- srcInfo, err := os.Stat(src)
- if err != nil {
-  fmt.Printf("Ошибка: %v\n", err)
-  return
- }
+	case "-d":
+		err = copyDirectory(src, dst) // Копирование директории
 
- if srcInfo.IsDir() {
-  err = copyDir(src, dst, preserveAttrs)
- } else {
-  err = copyFile(src, dst, preserveAttrs)
- }
+	default:
+		err = fmt.Errorf("недопустимый флаг: %s", flag)
 
- if err != nil {
-  fmt.Printf("Ошибка при копировании: %v\n", err)
- }
+	}
+
+	if err != nil {
+		fmt.Println("Ошибка:", err)
+
+		return
+	}
+	fmt.Println("Копирование завершено успешно.")
 }
