@@ -18,7 +18,10 @@ func readHistory(filePath string) ([]string, error) {
  var history []string
  scanner := bufio.NewScanner(file)
  for scanner.Scan() {
-  history = append(history, scanner.Text())
+  line := scanner.Text()
+  if line != "" { // игнорируем пустые строки
+   history = append(history, line)
+  }
  }
 
  if err := scanner.Err(); err != nil {
