@@ -1,78 +1,68 @@
 package main
 
 import (
- "bufio"
- "fmt"
- "os"
- "os/exec"
- "strings"
+	"fmt"
+	"os"
+	"os/exec"
+	"strings"
 )
 
-// showHelp выводит справочную информацию о программе
-func showHelp() {
- fmt.Println("Использование: go run main.go -h <command> [options]")
- fmt.Println("Ключи:")
- fmt.Println("  -h: Показать эту справку.")
- fmt.Println("  -r: Повторить последнюю команду.")
- fmt.Println("  -l: Показать историю команд.")
- fmt.Println("  -e: Выполнить команду с аргументами.")
-}
-
-// CommandHistory хранит историю команд
-var CommandHistory []string
-
-// executeCommand выполняет переданную команду и сохраняет её в историю
-func executeCommand(command string) error {
- cmd := exec.Command("bash", "-c", command)
- cmd.Stdout = os.Stdout
- cmd.Stderr = os.Stderr
- err := cmd.Run()
- if err != nil {
-  return fmt.Errorf("ошибка при выполнении команды: %v", err)
- }
- CommandHistory = append(CommandHistory, command) // Сохраняем команду в историю
- return nil
-}
-
-// listHistory выводит историю команд
-func listHistory() {
- fmt.Println("История команд:")
- for i, cmd := range CommandHistory {
-  fmt.Printf("%d: %s\n", i+1, cmd)
- }
-}
-
 func main() {
- if len(os.Args) < 3 || os.Args[1] != "-h" {
-  showHelp()
-  return
- }
+	if len(os.Args) < 2 {
+		fmt.Println("Ошибка: не указана команда.")
+		printHelp()
+		return
+	}
 
- switch os.Args[2] {
- case "-r":
-  if len(CommandHistory) == 0 {
-   fmt.Println("Ошибка: нет истории команд для повторения.")
-   return
-  }
-  lastCommand := CommandHistory[len(CommandHistory)-1]
-  fmt.Printf("Повторение команды: %s\n", lastCommand)
-  err := executeCommand(lastCommand)
-  if err != nil {
-   fmt.Println(err)
-  }
- case "-l":
-  listHistory()
- case "-e":
-  if len(os.Args) < 4 {
-   fmt.Println("Ошибка: требуется команда для выполнения.")
-   return
-  }
-  command := strings.Join(os.Args[3:], " ")
-  err := executeCommand(command)
-  if err != nil {
-   fmt.Println(err)
-  }
- default:
-  fmt.Println("Ошибка: неизвестный ключ. Используйте -h для получения справки.")
- }
+	if os.Args[1] == "--help" {
+		printHelp()
+		return
+	}
+
+	command := os.Args[1]
+	args := os.Args[2:]
+
+	switch command {
+	case "echo":
+		echoCommand(args)
+	case "ls":
+		lsCommand(args)
+	case "date":
+		dateCommand(args)
+	default:
+		fmt.Printf("Ошибка: неизвестная команда '%s'\n", command)
+		printHelp()
+	}
+}
+
+func printHelp() {
+	fmt.Println("Доступные команды:")
+	fmt.Println("  echo <текст> - выводит текст на экран.")
+	fmt.Println("  ls - выводит список файлов и папок в текущей директории.")
+	fmt.Println("  date - выводит текущую дату и время.")
+	fmt.Println("Используйте '--help' для отображения этой справки.")
+}
+
+func echoCommand(args []string) {
+	fmt.Println(strings.Join(args, " "))
+}
+
+func lsCommand(args []string) {
+	cmd := exec.Command("ls", args...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Printf("Ошибка: %v", err)
+		return
+	}
+	fmt.Print(string(output))
+}
+
+func dateCommand(args []string) {
+	cmd := exec.Command("date", args...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Printf("Ошибка: %v", err)
+		return
+	}
+	fmt.Print(string(output))
 }

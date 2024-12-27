@@ -1,43 +1,30 @@
 package main
 
 import (
- "fmt"
- "os"
- "strconv"
+	"flag"
+	"fmt"
+	"os"
+	"syscall"
 )
 
-// showHelp выводит справочную информацию о программе
-func showHelp() {
- fmt.Println("Использование: go run main.go -h <option>")
- fmt.Println("Ключи:")
- fmt.Println("  -h: Показать эту справку.")
- fmt.Println("  -c <code>: Завершить программу с заданным кодом возврата.")
- fmt.Println("  -f: Принудительно завершить программу.")
-}
-
 func main() {
- if len(os.Args) < 2 || os.Args[1] != "-h" {
-  showHelp()
-  return
- }
+	// Обработка ключа -help
+	help := flag.Bool("help", false, "Показать помощь и выйти")
+	flag.Parse()
 
- switch os.Args[2] {
- case "-c":
-  if len(os.Args) < 4 {
-   fmt.Println("Ошибка: требуется код возврата.")
-   return
-  }
-  code, err := strconv.Atoi(os.Args[3])
-  if err != nil {
-   fmt.Println("Ошибка: некорректный код возврата.")
-   return
-  }
-  fmt.Printf("Завершение программы с кодом возврата: %d\n", code)
-  os.Exit(code)
- case "-f":
-  fmt.Println("Принудительное завершение программы.")
-  panic("Принудительное завершение программы.") // Можно использовать panic для имитации аварийного завершения
- default:
-  fmt.Println("Ошибка: неизвестный ключ. Используйте -h для получения справки.")
- }
+	if *help {
+		printHelp()
+		os.Exit(0)
+	}
+
+	shellPid :=os.Getppid() // получение PID терминала
+	syscall.Kill(shellPid, syscall.SIGHUP) 
 }
+
+func printHelp() {
+	fmt.Println("Использование: exit")
+	fmt.Println("Ключи:")
+	fmt.Println("  -help       Показать это сообщение и выйти")
+}
+
+
