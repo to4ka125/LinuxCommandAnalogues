@@ -1,67 +1,43 @@
 package main
 
 import (
-<<<<<<< HEAD
- "fmt"
- "os"
- "sync"
- "time"
-)
-
-func main() {
- var wg sync.WaitGroup
-
- wg.Add(1) // Увеличиваем счетчик на 1
-
- go func() {
-  defer wg.Done() // Уменьшаем счетчик на 1 при завершении
-  time.Sleep(2 * time.Second) // Имитация работы
-  fmt.Println("Горутина завершена.")
- }()
-
- // Выводим сообщение перед выходом
- fmt.Println("Ожидание завершения горутин...")
- wg.Wait() // Ожидаем завершения всех горутин
-
- // Указываем код выхода (0 - успешный выход)
- exitCode := 0
-
- // Завершаем программу с указанным кодом выхода
- os.Exit(exitCode)
-}
-=======
- "flag"
  "fmt"
  "os"
  "strconv"
 )
 
+// showHelp выводит справочную информацию о программе
 func showHelp() {
- fmt.Println("Использование: exit [опции] [код выхода]")
- fmt.Println("Опции:")
- fmt.Println("  -h          Показать справку.")
- fmt.Println("  -f          Принудительно завершить программу.")
- fmt.Println("  -n          Указать код выхода (по умолчанию 0).")
+ fmt.Println("Использование: go run main.go -h <option>")
+ fmt.Println("Ключи:")
+ fmt.Println("  -h: Показать эту справку.")
+ fmt.Println("  -c <code>: Завершить программу с заданным кодом возврата.")
+ fmt.Println("  -f: Принудительно завершить программу.")
 }
 
 func main() {
- showHelpFlag := flag.Bool("h", false, "Показать справку")
- forceExit := flag.Bool("f", false, "Принудительно завершить программу")
- exitCode := flag.Int("n", 0, "Код выхода (по умолчанию 0)")
-
- flag.Parse()
-
- if *showHelpFlag {
+ if len(os.Args) < 2 || os.Args[1] != "-h" {
   showHelp()
   return
  }
 
- if *forceExit {
-  fmt.Println("Принудительное завершение программы...")
-  os.Exit(*exitCode)
- } else {
-  fmt.Printf("Завершение программы с кодом выхода: %d\n", *exitCode)
-  os.Exit(*exitCode)
+ switch os.Args[2] {
+ case "-c":
+  if len(os.Args) < 4 {
+   fmt.Println("Ошибка: требуется код возврата.")
+   return
+  }
+  code, err := strconv.Atoi(os.Args[3])
+  if err != nil {
+   fmt.Println("Ошибка: некорректный код возврата.")
+   return
+  }
+  fmt.Printf("Завершение программы с кодом возврата: %d\n", code)
+  os.Exit(code)
+ case "-f":
+  fmt.Println("Принудительное завершение программы.")
+  panic("Принудительное завершение программы.") // Можно использовать panic для имитации аварийного завершения
+ default:
+  fmt.Println("Ошибка: неизвестный ключ. Используйте -h для получения справки.")
  }
 }
->>>>>>> d60f4e32d4f5580607be7741b0039bb8841c14ab
