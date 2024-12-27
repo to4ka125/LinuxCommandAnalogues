@@ -3,93 +3,85 @@ package main
 import (
  "flag"
  "fmt"
- "os"
+ "io/fs"
+ "log"
  "path/filepath"
+ "strconv"
  "strings"
 )
 
-func printHelp() {
- fmt.Println("Использование: find [-h] [-name <имя>] [-type <тип>] [-size <размер>] [-exec <команда>] <путь>")
- fmt.Println("Ключи:")
- fmt.Println("  -h           Показать эту справку")
- fmt.Println("  -name <имя> Найти файлы с указанным именем")
- fmt.Println("  -type <тип> Найти файлы указанного типа (f - файл, d - директория)")
- fmt.Println("  -size <размер> Найти файлы указанного размера (например, +100k, -1M)")
- fmt.Println("  -exec <команда> Выполнить команду для каждого найденного файла")
+// Функция для проверки, соответствует ли имя файла шаблону
+func matchesPattern(fileName, pattern string) bool {
+ if strings.Contains(pattern, "*") {
+  return strings.HasSuffix(fileName, strings.TrimPrefix(pattern, "*"))
+ }
+ return fileName == pattern
 }
 
-func main() {
- help := flag.Bool("h", false, "показать помощь")
- name := flag.String("name", "", "имя файла для поиска")
- fileType := flag.String("type", "", "тип файла (f - файл, d - директория)")
- size := flag.String("size", "", "размер файла (например, +100k, -1M)")
- exec := flag.String("exec", "", "команда для выполнения над найденными файлами")
- path := flag.String("path", ".", "путь для поиска")
+// Функция для поиска файлов в директории
+func searchFiles(dir, pattern string, minSize int64) {
+ err := filepath.WalkDir(dir, func(path string, entry fs.DirEntry, err error) error {
+  if err != nil {
+   return err
+  }
+  if entry.IsDir() {
+   return nil
+  }
 
- flag.Parse()
-
- if *help {
-  printHelp()
-  os.Exit(0)
- }
-
- if *name == "" && *fileType == "" && *size == "" && *exec == "" {
-  fmt.Println("Ошибка: необходимо указать хотя бы один критерий поиска.")
-  os.Exit(1)
- }
-
- err := filepath.Walk(*path, func(path string, info os.FileInfo, err error) error {
+  info, err := entry.Info()
   if err != nil {
    return err
   }
 
-  if *name != "" && !strings.Contains(info.Name(), *name) {
+  if info.Size() < minSize {
    return nil
   }
 
-  if *fileType != "" {
-   if (*fileType == "f" && info.IsDir()) || (*fileType == "d" && !info.IsDir()) {
-    return nil
-   }
+  if matchesPattern(info.Name(), pattern) {
+   fmt.Println(path)
   }
-
-  if *size != "" {
-   var sizeLimit int64
-   var operator string
-   fmt.Sscanf(*size, "%s%d", &operator, &sizeLimit)
-
-   switch operator {
-   case "+":
-    if info.Size() <= sizeLimit {
-     return nil
-    }
-   case "-":
-    if info.Size() >= sizeLimit {
-     return nil
-    }
-   default:
-    if info.Size() != sizeLimit {
-     return nil
-    }
-   }
-  }
-
-  fmt.Println(path)
-
-  if *exec != "" {
-   cmd := exec.Command(*exec, path)
-   cmd.Stdout = os.Stdout
-   cmd.Stderr = os.Stderr
-   if err := cmd.Run(); err != nil {
-    fmt.Printf("Ошибка выполнения команды: %v\n", err)
-   }
-  }
-
   return nil
  })
 
  if err != nil {
-  fmt.Printf("Ошибка при обходе файловой системы: %v\n", err)
-  os.Exit(1)
+  log.Fatalf("Ошибка при обходе директории: %v", err)
  }
+}
+
+func main() {
+ showHelp := flag.Bool("h", false, "Показать справку")
+ dirPath := flag.String("d", "", "Путь к директории для поиска")
+ filePattern := flag.String("n", "", "Имя файла или шаблон для поиска")
+ minFileSize := flag.String("s", "0", "Минимальный размер файла в байтах (по умолчанию 0)")
+
+ flag.Parse()
+
+ if *showHelp {
+  printHelp()
+  return
+ }
+
+ if *dirPath == "" {
+  log.Fatal("Ошибка: Необходимо указать путь к директории с помощью -d.")
+ }
+
+ if *filePattern == "" {
+  log.Fatal("Ошибка: Необходимо указать имя файла или шаблон с помощью -n.")
+ }
+
+ size, err := strconv.ParseInt(*minFileSize, 10, 64)
+ if err != nil || size < 0 {
+  log.Fatal("Ошибка: Размер должен быть неотрицательным числом.")
+ }
+
+ searchFiles(*dirPath, *filePattern, size)
+}
+
+// Функция для вывода справки по использованию программы
+func printHelp() {
+ fmt.Println("Использование: find -d <директория> -n <имя> -s <размер>")
+ fmt.Println("-h: Показать справку")
+ fmt.Println("-d: Путь к директории для поиска")
+ fmt.Println("-n: Имя файла или шаблон для поиска")
+ fmt.Println("-s: Минимальный размер файла в байтах (по умолчанию 0)")
 }
